@@ -58,15 +58,19 @@ function get_products_data_for_list() {
             $_product_attributes = json_encode( unserialize( $product_meta_info["_product_attributes"][0] ) );
         }*/
         
-        $price_is_tax_exempt = $price_with_margin <= $uvt_exemption_limit;
+        $kenner_base_price = $price_with_margin;
+        $final_price = $price_with_margin;
         
-        $final_price = $price_with_margin -($price_with_margin*(19/119));
+        //$price_is_tax_exempt = $price_with_margin <= $uvt_exemption_limit;
+        $price_is_tax_exempt = $kenner_base_price <= $uvt_exemption_limit;
+        
         $iva_amount = 0;
         
-        // YTorrado: aqui aplicamos al precio con margen el IVA si aplica.
+        // si el precio tiene IVA
         if (!$price_is_tax_exempt) {
             $iva_amount = $price_with_margin * ($iva_rate / 100);
-         // **   $final_price += $iva_amount;
+            $kenner_base_price = $price_with_margin -($price_with_margin*(19/119)); //calculamos el precio sin IVA
+            //$final_price += $iva_amount;
         }
 
         $list_data[] = [
@@ -75,7 +79,7 @@ function get_products_data_for_list() {
             'name' => $product->get_name(),
             'category' => $category,
             'subcategory' => $subcategory,
-            'mps_price' => number_format($mps_base_price, 0, ',', '.'),
+            'mps_price' => number_format($kenner_base_price, 0, ',', '.'),
             'final_price' => number_format($final_price, 0, ',', '.'),
             'uvts_status' => $price_is_tax_exempt ? 'Sí (Exento)' : 'No (Gravado)',
             'iva_status' => $price_is_tax_exempt ? '0%' : $iva_rate . '%',
@@ -108,8 +112,8 @@ function get_products_data_for_list() {
                 <th scope="col" id="sku" class="manage-column column-sku">SKU</th>
                 <th scope="col" id="name" class="manage-column column-name">Nombre del Producto</th>
                 <th scope="col" id="category" class="manage-column column-category">Categoría</th>
-                <th scope="col" id="price" class="manage-column column-price">Precio</th>
-                <th scope="col" id="final_price" class="manage-column column-final_price">Precio sin IVA</th>
+                <th scope="col" id="price" class="manage-column column-price">Precio sin IVA</th>
+                <th scope="col" id="final_price" class="manage-column column-final_price">Precio final</th>
                 <th scope="col" id="uvts" class="manage-column column-uvts">Aplica Exención UVT (50 UVT)</th>
                 <th scope="col" id="iva" class="manage-column column-iva">IVA Aplicado</th>
                 <th scope="col" id="meta_info" class="manage-column column-meta_info">meta info</th>
@@ -167,8 +171,8 @@ function get_products_data_for_list() {
                 <th scope="col">SKU</th>
                 <th scope="col">Nombre del Producto</th>
                 <th scope="col">Categoría</th>
-                <th scope="col">Precio</th>
                 <th scope="col">Precio sin IVA</th>
+                <th scope="col">Precio final</th>
                 <th scope="col">Aplica Exención UVT (50 UVT)</th>
                 <th scope="col">IVA Aplicado</th>
                 <th scope="col">Meta info</th>
