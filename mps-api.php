@@ -302,6 +302,16 @@ class Distributor_MPS
             }
         }
 
+        if (!empty($mps_product["Imagenes"])) {
+            $images = array_filter($mps_product["Imagenes"]);
+            $images = implode(",", $images);
+            try {
+                update_post_meta($id_product, '_field_external_links', $images);
+            } catch (Exception $e) {
+                mps_log("Error al agregar imagenes " . $e->getMessage(), 2);
+            }
+        }
+
         $product_in_page->save();
         unset($product_in_page, $price, $str_price, $categories_to_public);
     }
