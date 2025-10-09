@@ -45,32 +45,24 @@ function get_products_data_for_list() {
         // Aquí debes llamar a las funciones que ya tienes definidas en otros archivos de tu plugin
         
         // Ejemplo de cómo obtener los metadatos que guardas del WS de MPS
-        $mps_base_price = (float) get_post_meta($product_id, '_price', true); // Precio del WS de MPS
-        $kenner_percentage = (float) get_post_meta($product_id, '_kenner_percentage', true); // Tu margen
+        $mps_base_price = (float) get_post_meta($product_id, '_precio_mps', true); // Precio del WS de MPS
+        $kenner_price = (float) get_post_meta($product_id, '_precio_base', true); // mi precio
+        $price = (float) get_post_meta($product_id, '_price', true);  //precio con IVA final
+        $regular_price = (float) get_post_meta($product_id, '_regular_price', true); // precio regular con IVA
+        $kenner_percentage = (float) get_post_meta($product_id, '_kenner_percentage', true); // Tu margen %
+        $aplica_iva = (boolean) get_post_meta($product_id, '_aplica_iva', true);//_aplica_iva
         
-        // ** Simulación de Cálculos ** de precio.
-        $price_with_margin = (float) get_post_meta($product_id, '_regular_price', true);
         
-        /*sacamos información contenida del producto adicional 07/10/2055 agregado por YTORRADO no se da por útil
-        $product_meta_info = get_post_meta($product_id);
-         $_product_attributes ="";
-        if(isset($product_meta_info["_product_attributes"])){
-            $_product_attributes = json_encode( unserialize( $product_meta_info["_product_attributes"][0] ) );
-        }*/
-        
-        $kenner_base_price = $price_with_margin;
-        $final_price = $price_with_margin;
-        
-        //$price_is_tax_exempt = $price_with_margin <= $uvt_exemption_limit;
-        $price_is_tax_exempt = $kenner_base_price <= $uvt_exemption_limit;
-        
+        $kenner_base_price = $kenner_price;
+        $final_price = $price;
+        //$price_is_tax_exempt = ($kenner_base_price <= $uvt_exemption_limit) && !$aplica_iva;
+        $price_is_tax_exempt = !$aplica_iva;
+
         $iva_amount = 0;
         
         // si el precio tiene IVA
         if (!$price_is_tax_exempt) {
-            $iva_amount = $price_with_margin * ($iva_rate / 100);
-            $kenner_base_price = $price_with_margin -($price_with_margin*(19/119)); //calculamos el precio sin IVA
-            //$final_price += $iva_amount;
+            $iva_amount = $regular_price * ($iva_rate / 100);
         }
 
         $list_data[] = [
@@ -79,12 +71,12 @@ function get_products_data_for_list() {
             'name' => $product->get_name(),
             'category' => $category,
             'subcategory' => $subcategory,
-            'mps_price' => number_format($kenner_base_price, 0, ',', '.'),
+            'mps_price' => number_format($mps_base_price, 0, ',', '.'),
+            'kenner_price' => number_format($kenner_price, 0, ',', '.'),
             'final_price' => number_format($final_price, 0, ',', '.'),
             'uvts_status' => $price_is_tax_exempt ? 'Sí (Exento)' : 'No (Gravado)',
             'iva_status' => $price_is_tax_exempt ? '0%' : $iva_rate . '%',
             'uvt_value' => number_format($uvts_value, 0, ',', '.'),
-            'meta_info' => $categories_json,
         ];
     }
     
@@ -112,11 +104,12 @@ function get_products_data_for_list() {
                 <th scope="col" id="sku" class="manage-column column-sku">SKU</th>
                 <th scope="col" id="name" class="manage-column column-name">Nombre del Producto</th>
                 <th scope="col" id="category" class="manage-column column-category">Categoría</th>
-                <th scope="col" id="price" class="manage-column column-price">Precio sin IVA</th>
+                <th scope="col" id="price" class="manage-column column-price">Precio MPS</th>
+                <th scope="col" id="meta_info" class="manage-column column-meta_info">Precio Kenner</th>
                 <th scope="col" id="final_price" class="manage-column column-final_price">Precio final</th>
                 <th scope="col" id="uvts" class="manage-column column-uvts">Aplica Exención UVT (50 UVT)</th>
                 <th scope="col" id="iva" class="manage-column column-iva">IVA Aplicado</th>
-                <th scope="col" id="meta_info" class="manage-column column-meta_info">meta info</th>
+                
             </tr>
         </thead>
         <tbody>
@@ -142,6 +135,11 @@ function get_products_data_for_list() {
                 <td class="price column-price">
                     $<?php echo esc_html($product_info['mps_price']); ?>
                 </td>
+                <td class="meta_info column-meta_info">
+                    <?php
+                    echo esc_html($product_info['kenner_price']);
+                    ?>
+                </td>
                 <td class="final_price column-final_price">
                     <strong>$<?php echo esc_html($product_info['final_price']); ?></strong>
                 </td>
@@ -157,11 +155,6 @@ function get_products_data_for_list() {
                 <td class="iva column-iva">
                     <?php echo esc_html($product_info['iva_status']); ?>
                 </td>
-                <td class="meta_info column-meta_info">
-                    <?php
-                    echo esc_html($product_info['meta_info']);
-                    ?>
-                </td>
             </tr>
             <?php endforeach; ?>
         </tbody>
@@ -171,11 +164,11 @@ function get_products_data_for_list() {
                 <th scope="col">SKU</th>
                 <th scope="col">Nombre del Producto</th>
                 <th scope="col">Categoría</th>
-                <th scope="col">Precio sin IVA</th>
+                <th scope="col">Precio MPS</th>                
+                <th scope="col">Precio Kenner</th>
                 <th scope="col">Precio final</th>
                 <th scope="col">Aplica Exención UVT (50 UVT)</th>
                 <th scope="col">IVA Aplicado</th>
-                <th scope="col">Meta info</th>
             </tr>
         </tfoot>
     </table>
