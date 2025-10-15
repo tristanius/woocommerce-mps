@@ -720,6 +720,11 @@ class Distributor_MPS
         ];
 
         $uvts_info = get_option('uvts');
+        if (empty($uvts_info['value']) || empty($uvts_info['firts_limit']) || empty($uvts_info['second_limit'])) {
+            return $uvts; // No hay configuración, no se puede validar.
+        }
+
+        $uvt_value = (float)$uvts_info['value'];
         $firts_limit = $uvts_info['firts_limit'] * $uvts_info['value'];
         $second_limit = $uvts_info['second_limit'] * $uvts_info['value'];
 
@@ -760,31 +765,16 @@ class Distributor_MPS
      */
     private function set_price_kt(float|int $mps_price, array $categories, string $tri_clas, bool $report = false)
     {
-        $categories_to_public = $this->percentage_category;
+        // 1. Calcular el precio Kenner (base + margen)
+        $kenner_price = $this->calculate_kenner_price($mps_price, $categories);
 
-        $percentage_kt = (int)$categories_to_public[$categories[0]]['value'] ?? 0;
-        $percentage_kt_value = $percentage_kt > 0 ? $this->calculate_percentage($mps_price, $percentage_kt) : 0;
-        $kenner_price = $mps_price + $percentage_kt_value;
+        // 2. Determinar si se aplica IVA
+        $iva_info = $this->calculate_iva_by_uvt($kenner_price, $categories, $tri_clas);
+        $aplica_iva = $iva_info["aplica_iva"];
 
-        if ($tri_clas != "GRAVADO") {
-            $uvts = $this->check_uvts($mps_price + $percentage_kt_value, $categories);
-            if ($uvts["applied_uvts"]) {
-                $iva = $uvts["exceeds_uvts"] ? $this->calculate_iva($kenner_price) : 0;
-                $uvts_exempt = $iva != 0 ? "aplica iva" : "excento de iva";
-            } else {
-                $iva = $this->calculate_iva($kenner_price);
-                $uvts_exempt = "no aplica";
-            }
-            $iva = 0;
-        } else {
-            $iva = $this->calculate_iva($kenner_price);
-        }
-
-
-        $kenner_price += $iva;
-
-        $product_price = intval($kenner_price);
-
+        // El precio que guardamos en WooCommerce debe ser SIN IVA, ya que WooCommerce lo añade después.
+        $final_price = $kenner_price;
+        
         if ($report) {
             return [
                 "Precio MPS" => $mps_price,
