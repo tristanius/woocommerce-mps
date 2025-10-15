@@ -170,6 +170,17 @@ class Distributor_MPS
         $price = $this->set_price_kt($product["precio"], [$product["Categoria"], $product["Familia"], $product["Marks"]], $product["TributariClassification"]);
         $str_price = strval($price);
         $new_product->set_regular_price($str_price);
+        
+        // --- INICIO DE CÓDIGO AÑADIDO (CORREGIDO) ---
+        // Establecer la clase de impuesto basado en la validación de IVA
+        $iva_info = $this->calculate_iva_by_uvt($price, [$product["Categoria"], $product["Familia"], $product["Marks"]], $product["TributariClassification"]); // Agrego los parámetros para que sea explícito
+        if (isset($iva_info['aplica_iva']) && $iva_info['aplica_iva'] === false) {
+            $new_product->set_tax_class('Zero Rate'); // Asigna la clase de impuesto 'Tasa Cero'
+        } else {
+            $new_product->set_tax_class(''); // Asigna la clase de impuesto estándar
+        }
+        // --- FIN DE CÓDIGO AÑADIDO (CORREGIDO) ---
+        // ...
 
         //set status
         if (array_key_exists($product["Categoria"], $categories_to_public)) {
@@ -307,6 +318,17 @@ class Distributor_MPS
         $str_price = strval($price);
         $product_in_page->set_regular_price($str_price);
         $product_in_page->set_sale_price($str_price);
+
+        // --- INICIO DE CÓDIGO AÑADIDO ---
+        // Establecer la clase de impuesto basado en la validación de IVA
+        $iva_info = $this->calculate_iva_by_uvt($price, [$mps_product["Categoria"], $mps_product["Familia"], $mps_product["Marks"]], $mps_product["TributariClassification"]);
+        if (isset($iva_info['aplica_iva']) && $iva_info['aplica_iva'] === false) {
+            $product_in_page->set_tax_class('Zero Rate'); // Asigna la clase de impuesto 'Tasa Cero'
+        } else {
+            $product_in_page->set_tax_class(''); // Asigna la clase de impuesto estándar si no está exento
+        }
+        // --- FIN DE CÓDIGO AÑADIDO ---
+        // ...
 
         //set status
         if ($this->limit_price > $mps_product["precio"]) {
