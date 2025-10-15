@@ -49,14 +49,13 @@ function get_products_data_for_list() {
         $kenner_price = (float) get_post_meta($product_id, '_precio_base', true); // mi precio
         $price = (float) get_post_meta($product_id, '_price', true);  //precio con IVA final
         $regular_price = (float) get_post_meta($product_id, '_regular_price', true); // precio regular con IVA
-        $kenner_percentage = (float) get_post_meta($product_id, '_kenner_percentage', true); // Tu margen %
-        $aplica_iva = (boolean) get_post_meta($product_id, '_aplica_iva', true);//_aplica_iva
+        $aplica_iva = get_post_meta($product_id, '_aplica_iva', true);//_aplica_iva
         
         
         $kenner_base_price = $kenner_price;
         $final_price = $price;
-        //$price_is_tax_exempt = ($kenner_base_price <= $uvt_exemption_limit) && !$aplica_iva;
-        $price_is_tax_exempt = !$aplica_iva;
+        $price_is_tax_exempt = ($kenner_base_price <= $uvt_exemption_limit) && !$aplica_iva;
+        //$price_is_tax_exempt = !$aplica_iva;
 
         $iva_amount = 0;
         
@@ -77,6 +76,7 @@ function get_products_data_for_list() {
             'uvts_status' => $price_is_tax_exempt ? 'Sí (Exento)' : 'No (Gravado)',
             'iva_status' => $price_is_tax_exempt ? '0%' : $iva_rate . '%',
             'uvt_value' => number_format($uvts_value, 0, ',', '.'),
+            '_aplica_iva' => $aplica_iva,
         ];
     }
     

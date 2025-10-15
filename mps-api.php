@@ -306,6 +306,7 @@ class Distributor_MPS
         $price = $this->set_price_kt($mps_product["precio"], [$mps_product["Categoria"], $mps_product["Familia"], $mps_product["Marks"]], $mps_product["TributariClassification"]);
         $str_price = strval($price);
         $product_in_page->set_regular_price($str_price);
+        $product_in_page->set_sale_price($str_price);
 
         //set status
         if ($this->limit_price > $mps_product["precio"]) {
@@ -811,7 +812,7 @@ class Distributor_MPS
             $iva["valor_iva"] = $this->calculate_iva($kenner_price); // En caso que no haga match con las categorías excentas calcular IVA igualmente
         }
 
-        return $aplica_iva;
+        return $iva;
     }
 
 
