@@ -170,6 +170,17 @@ class Distributor_MPS
         $price = $this->set_price_kt($product["precio"], [$product["Categoria"], $product["Familia"], $product["Marks"]], $product["TributariClassification"]);
         $str_price = strval($price);
         $new_product->set_regular_price($str_price);
+        
+        // --- INICIO DE CÓDIGO AÑADIDO (CORREGIDO) ---
+        // Establecer la clase de impuesto basado en la validación de IVA
+        $iva_info = $this->calculate_iva_by_uvt($price, [$product["Categoria"], $product["Familia"], $product["Marks"]], $product["TributariClassification"]); // Agrego los parámetros para que sea explícito
+        if (isset($iva_info['aplica_iva']) && $iva_info['aplica_iva'] === false) {
+            $new_product->set_tax_class('Zero Rate'); // Asigna la clase de impuesto 'Tasa Cero'
+        } else {
+            $new_product->set_tax_class(''); // Asigna la clase de impuesto estándar
+        }
+        // --- FIN DE CÓDIGO AÑADIDO (CORREGIDO) ---
+        // ...
 
         //set status
         if (array_key_exists($product["Categoria"], $categories_to_public)) {
@@ -224,6 +235,22 @@ class Distributor_MPS
                     mps_log("Error al agregar Almacen " . $e->getMessage(), 2);
                 }
             }
+            // Agregamos el precio base de mps (int), si es excento (boolean), precio base de kennertech
+            if (!empty($product["precio"])) {
+                $precio_mps = $product["precio"];
+                try {
+                    update_post_meta($product_id, '_precio_mps', $precio_mps); // aquí guardamos el precio base delproveedor
+                    
+                    $kenner_price = $this->calculate_kenner_price( $precio_mps, [$product["Categoria"], $product["Familia"]] ); //calculamos el precio  + el margen de ganancia de la empresa
+                    $iva = $this->calculate_iva_by_uvt($kenner_price, [$product["Categoria"], $product["Familia"]] ); // calculamos el IVA y retorna un array
+
+                    update_post_meta($product_id, '_precio_base', $kenner_price ); // llamamos una función de calculo de precio base + el margen de kenner para calcular. Se guarda como metadata
+                    update_post_meta($product_id, '_aplica_iva', $iva["aplica_iva"] ); // llamamos una función de validación de IVA por UVTs true/false. Se guarda como metadata
+                } catch (Exception $e) {
+                    mps_log("Error al agregar IVA " . $e->getMessage(), 2);
+                }
+            }
+
         }
 
         unset($product, $new_product, $duplicado, $mps_prefix_sku, $price, $str_price, $category_product, $family_product, $mark_product, $product_id, $images, $store);
@@ -290,6 +317,18 @@ class Distributor_MPS
         $price = $this->set_price_kt($mps_product["precio"], [$mps_product["Categoria"], $mps_product["Familia"], $mps_product["Marks"]], $mps_product["TributariClassification"]);
         $str_price = strval($price);
         $product_in_page->set_regular_price($str_price);
+        $product_in_page->set_sale_price($str_price);
+
+        // --- INICIO DE CÓDIGO AÑADIDO ---
+        // Establecer la clase de impuesto basado en la validación de IVA
+        $iva_info = $this->calculate_iva_by_uvt($price, [$mps_product["Categoria"], $mps_product["Familia"], $mps_product["Marks"]], $mps_product["TributariClassification"]);
+        if (isset($iva_info['aplica_iva']) && $iva_info['aplica_iva'] === false) {
+            $product_in_page->set_tax_class('Zero Rate'); // Asigna la clase de impuesto 'Tasa Cero'
+        } else {
+            $product_in_page->set_tax_class(''); // Asigna la clase de impuesto estándar si no está exento
+        }
+        // --- FIN DE CÓDIGO AÑADIDO ---
+        // ...
 
         //set status
         if ($this->limit_price > $mps_product["precio"]) {
@@ -299,6 +338,32 @@ class Distributor_MPS
                 $product_in_page->set_status((int)$categories_to_public[$mps_product["Categoria"]]['value'] !== 0 ? 'publish' : 'draft');
             } else {
                 $product_in_page->set_status('draft');
+            }
+        }
+
+        if (!empty($mps_product["Imagenes"])) {
+            $images = array_filter($mps_product["Imagenes"]);
+            $images = implode(",", $images);
+            try {
+                update_post_meta($id_product, '_field_external_links', $images);
+            } catch (Exception $e) {
+                mps_log("Error al agregar imagenes " . $e->getMessage(), 2);
+            }
+        }
+
+        // Agregamos el precio base de mps (int), si es excento (boolean), precio base de kennertech
+        if (!empty($mps_product["precio"])) {
+            $precio_mps = $mps_product["precio"];
+            try {
+                update_post_meta($id_product, '_precio_mps', $precio_mps); // aquí guardamos el precio base delproveedor
+                
+                $kenner_price = $this->calculate_kenner_price( $precio_mps, [$mps_product["Categoria"], $mps_product["Familia"]] ); //calculamos el precio  + el margen de ganancia de la empresa
+                $iva = $this->calculate_iva_by_uvt($kenner_price, [$mps_product["Categoria"], $mps_product["Familia"]] );  // calculamos el IVA y retorna un array
+
+                update_post_meta($id_product, '_precio_base', $kenner_price ); // llamamos una función de calculo de precio base + el margen de kenner para calcular. Se guarda como metadata
+                update_post_meta($id_product, '_aplica_iva', $iva["aplica_iva"] ); // llamamos una función de validación de IVA por UVTs true/false. Se guarda como metadata
+            } catch (Exception $e) {
+                mps_log("Error al agregar IVA " . $e->getMessage(), 2);
             }
         }
 
@@ -655,9 +720,15 @@ class Distributor_MPS
         ];
 
         $uvts_info = get_option('uvts');
+        if (empty($uvts_info['value']) || empty($uvts_info['firts_limit']) || empty($uvts_info['second_limit'])) {
+            return $uvts; // No hay configuración, no se puede validar.
+        }
+
+        $uvt_value = (float)$uvts_info['value'];
         $firts_limit = $uvts_info['firts_limit'] * $uvts_info['value'];
         $second_limit = $uvts_info['second_limit'] * $uvts_info['value'];
 
+        //Esto debe ser gestionado en una BD
         $categories_limits = [
             'PCs' => $firts_limit,
             'PORTATILES' => $firts_limit,
@@ -694,31 +765,16 @@ class Distributor_MPS
      */
     private function set_price_kt(float|int $mps_price, array $categories, string $tri_clas, bool $report = false)
     {
-        $categories_to_public = $this->percentage_category;
+        // 1. Calcular el precio Kenner (base + margen)
+        $kenner_price = $this->calculate_kenner_price($mps_price, $categories);
 
-        $percentage_kt = (int)$categories_to_public[$categories[0]]['value'] ?? 0;
-        $percentage_kt_value = $percentage_kt > 0 ? $this->calculate_percentage($mps_price, $percentage_kt) : 0;
-        $kenner_price = $mps_price + $percentage_kt_value;
+        // 2. Determinar si se aplica IVA
+        $iva_info = $this->calculate_iva_by_uvt($kenner_price, $categories, $tri_clas);
+        $aplica_iva = $iva_info["aplica_iva"];
 
-        if ($tri_clas != "GRAVADO") {
-            $uvts = $this->check_uvts($mps_price + $percentage_kt_value, $categories);
-            if ($uvts["applied_uvts"]) {
-                $iva = $uvts["exceeds_uvts"] ? $this->calculate_iva($kenner_price) : 0;
-                $uvts_exempt = $iva != 0 ? "aplica iva" : "excento de iva";
-            } else {
-                $iva = $this->calculate_iva($kenner_price);
-                $uvts_exempt = "no aplica";
-            }
-            $iva = 0;
-        } else {
-            $iva = $this->calculate_iva($kenner_price);
-        }
-
-
-        $kenner_price += $iva;
-
-        $product_price = intval($kenner_price);
-
+        // El precio que guardamos en WooCommerce debe ser SIN IVA, ya que WooCommerce lo añade después.
+        $final_price = $kenner_price;
+        
         if ($report) {
             return [
                 "Precio MPS" => $mps_price,
@@ -735,6 +791,42 @@ class Distributor_MPS
             return $product_price;
         }
     }
+
+    private function calculate_kenner_price( float|int $mps_price, array $categories ){
+        $kenner_price = 0;
+        $categories_to_public = $this->percentage_category;
+
+        $percentage_kt = (int)$categories_to_public[$categories[0]]['value'] ?? 0;
+
+        $percentage_kt_value = $percentage_kt > 0 ? $this->calculate_percentage($mps_price, $percentage_kt) : 0;
+        $kenner_price = $mps_price + $percentage_kt_value;
+
+        return $kenner_price;
+    }
+
+    private function calculate_iva_by_uvt( float|int $kenner_price, array $categories ){
+        $iva = [
+            "aplica_iva"=>true,
+            "valor_iva"=>0,
+        ];
+        $uvts = [
+            "applied_uvts" => false,
+            "exceeds_uvts" => false,
+        ];
+
+        //validamos la categoria y almacenamos la validación boolean en $uvts
+        $uvts = $this->check_uvts($kenner_price, $categories);
+
+        // si categoria de product y las excentas hacen match "applied_uvts" será true pero "exceeds_uvts" indica que no es un valor > montos limites
+        if ($uvts["applied_uvts"] && !$uvts["exceeds_uvts"]) { 
+            $iva["aplica_iva"] = false; // marcar que la propiedad aplica_iva es falso                      
+        }else{
+            $iva["valor_iva"] = $this->calculate_iva($kenner_price); // En caso que no haga match con las categorías excentas calcular IVA igualmente
+        }
+
+        return $iva;
+    }
+
 
     public function create_report_prices()
     {
